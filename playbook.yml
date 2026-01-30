@@ -1,5 +1,0 @@
-- name: Test Notes App role
-  hosts: web
-  become: yes
-  roles:
-    - notes_app
