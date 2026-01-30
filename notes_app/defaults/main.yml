@@ -1,3 +1,5 @@
+---
+# defaults file for notes_app
 common_packages:
   - python3
   - python3-pip

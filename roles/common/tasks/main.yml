@@ -1,9 +1,0 @@
-- name: Update yum cache
-  yum:
-    update_cache: yes
-
-- name: Install common packages
-  yum:
-    name: "{{ item }}"
-    state: present
-  loop: "{{ common_packages }}"

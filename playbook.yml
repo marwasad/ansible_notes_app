@@ -1,16 +1,5 @@
-- name: Setup all servers
+- name: Test Notes App role
   hosts: web
   become: yes
-  vars_files:
-    - vars.yml
   roles:
-    - common
-
-
-- name: Setup Web Server
-  hosts: web
-  become: yes
-  vars_files:
-    - vars.yml
-  roles:
-    - web
+    - notes_app
