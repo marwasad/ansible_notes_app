@@ -1,0 +1,16 @@
+[Unit]
+Description=Notes Flask Application
+After=network.target
+
+[Service]
+Type=simple
+User={{ web_user }}
+Group={{ web_user }}
+WorkingDirectory={{ app_dir }}
+Environment="PATH={{ app_dir }}/venv/bin"
+ExecStart={{ app_dir }}/venv/bin/python {{ app_dir }}/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

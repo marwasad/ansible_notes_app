@@ -1,0 +1,162 @@
+---
+- name: Update yum cache
+  yum:
+    update_cache: yes
+
+- name: Install common packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ common_packages }}"
+
+# ------------------ Ensure cron is installed ------------------
+- name: Install cronie package
+  yum:
+    name: cronie
+    state: present
+
+- name: Ensure cron service is running and enabled
+  systemd:
+    name: crond
+    state: started
+    enabled: yes
+
+- name: Install web server packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ webserver_packages }}"
+
+- name: Ensure web user exists
+  user:
+    name: "{{ web_user }}"
+    system: yes
+    shell: /sbin/nologin
+
+- name: Create app directory
+  file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ web_user }}"
+    group: "{{ web_user }}"
+    mode: '0755'
+
+- name: Copy Flask app
+  copy:
+    src: app.py
+    dest: "{{ app_dir }}/app.py"
+    mode: '0644'
+
+- name: Install virtualenv
+  pip:
+    name: virtualenv
+    executable: pip3
+
+- name: Create Python virtual environment
+  command: python3 -m venv {{ app_dir }}/venv
+  args:
+    creates: "{{ app_dir }}/venv"
+
+- name: Install Python packages
+  pip:
+    name: "{{ item }}"
+    virtualenv: "{{ app_dir }}/venv"
+  loop: "{{ python_packages }}"
+
+# ------------------ Setup backup disk ------------------
+- name: Check if backup device exists
+  stat:
+    path: "{{ backup_device }}"
+  register: backup_device_stat
+
+- name: Create filesystem on backup disk
+  filesystem:
+    fstype: "{{ backup_filesystem }}"
+    dev: "{{ backup_device }}"
+  when: backup_device_stat.stat.exists
+
+- name: Create backup mount point
+  file:
+    path: "{{ backup_mount_point }}"
+    state: directory
+    mode: '0755'
+
+- name: Mount backup disk
+  mount:
+    path: "{{ backup_mount_point }}"
+    src: "{{ backup_device }}"
+    fstype: "{{ backup_filesystem }}"
+    opts: defaults
+    state: mounted
+  when: backup_device_stat.stat.exists
+
+- name: Create backup directory
+  file:
+    path: "{{ backup_dir }}"
+    state: directory
+    owner: "{{ web_user }}"
+    group: "{{ web_user }}"
+    mode: '0755'
+
+- name: Create backup script
+  copy:
+    dest: /usr/local/bin/backup-notes.sh
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+      cp {{ db_file }} {{ backup_dir }}/notes_backup_${TIMESTAMP}.db
+      find {{ backup_dir }} -name "notes_backup_*.db" -mtime +{{ backup_days }} -delete
+
+- name: Setup backup cron
+  cron:
+    name: "Backup SQLite DB"
+    minute: "{{ backup_time_minute }}"
+    hour: "{{ backup_time_hour }}"
+    job: "/usr/local/bin/backup-notes.sh"
+
+# ------------------ Setup systemd service ------------------
+- name: Create systemd service from template
+  template:
+    src: notes-app.service.j2
+    dest: /etc/systemd/system/notes-app.service
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Start Flask app
+  systemd:
+    name: notes-app
+    state: started
+    enabled: yes
+
+# ------------------ Configure Nginx ------------------
+- name: Configure Nginx for Flask
+  copy:
+    dest: /etc/nginx/conf.d/notes-app.conf
+    content: |
+      server {
+          listen 80;
+          server_name _;
+
+          location / {
+              proxy_pass http://127.0.0.1:5000;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+          }
+      }
+
+- name: Remove default Nginx config
+  file:
+    path: /etc/nginx/conf.d/default.conf
+    state: absent
+  ignore_errors: yes
+
+- name: Start Nginx
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
