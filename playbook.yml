@@ -1,0 +1,16 @@
+- name: Setup all servers
+  hosts: web
+  become: yes
+  vars_files:
+    - vars.yml
+  roles:
+    - common
+
+
+- name: Setup Web Server
+  hosts: web
+  become: yes
+  vars_files:
+    - vars.yml
+  roles:
+    - web

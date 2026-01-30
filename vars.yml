@@ -1,0 +1,23 @@
+common_packages:
+  - python3
+  - python3-pip
+  - rsync
+
+webserver_packages:
+  - nginx
+
+python_packages:
+  - flask
+  - werkzeug
+
+app_dir: /opt/notes-app
+db_file: /opt/notes-app/notes.db
+backup_dir: /mnt/backup/notes
+backup_device: /dev/nvme1n1
+backup_mount_point: /mnt/backup
+backup_filesystem: ext4
+
+web_user: nginx
+backup_days: 7
+backup_time_hour: 2
+backup_time_minute: 0
